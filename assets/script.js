@@ -1480,10 +1480,7 @@ function mainAnimationLoop() {
   let t = clock.getDelta();
 
   const e = clock.getElapsedTime();
-  // --- LOGIC HẠT TỰ THU LẠI ---
   if (e < GATHER_DURATION) {
-    // Tính toán tiến độ: 0 (bắt đầu) -> 1 (hoàn thành)
-    // Dùng hàm pow để tạo hiệu ứng "Ease Out" (nhanh lúc đầu, chậm lúc cuối)
     const progress = Math.min(e / GATHER_DURATION, 1);
     const inverseProgress = 1 - Math.pow(progress, 0.5); // Điều chỉnh số 0.5 để đổi độ mượt
 
