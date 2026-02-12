@@ -508,34 +508,39 @@
 
         music.volume = volumeSlider.value;
 
-        music.load();
-        music.currentTime = 0;
-        music
-          .play()
-          .then(() => {
-            console.log("Autoplay successful at:", music.currentTime);
-            playIcon.style.display = "none";
-            pauseIcon.style.display = "block";
-          })
-          .catch((error) => {
-            console.warn("Autoplay blocked:", error.message);
-          });
+        // Hàm thử phát nhạc
+        const attemptPlay = () => {
+          music
+            .play()
+            .then(() => {
+              console.log("Music started playing");
+              playIcon.style.display = "none";
+              pauseIcon.style.display = "block";
+              // Nếu phát thành công thì gỡ bỏ sự kiện lắng nghe click để đỡ tốn tài nguyên
+              document.removeEventListener("click", attemptPlay);
+              document.removeEventListener("touchstart", attemptPlay);
+            })
+            .catch((error) => {
+              console.log("Autoplay prevented. Waiting for interaction.");
+            });
+        };
 
+        // 1. Thử phát ngay lập tức khi tải trang
+        attemptPlay();
+
+        // 2. Nếu thất bại (do trình duyệt chặn), lắng nghe cú click/chạm đầu tiên để phát
+        document.addEventListener("click", attemptPlay);
+        document.addEventListener("touchstart", attemptPlay);
+
+        // --- Logic nút bấm và volume (giữ nguyên) ---
         function toggleMusic() {
           if (music.paused) {
-            music
-              .play()
-              .then(() => {
-                console.log("Music playing at:", music.currentTime);
-                playIcon.style.display = "none";
-                pauseIcon.style.display = "block";
-              })
-              .catch((error) => {
-                console.error("Error playing audio:", error.message);
-              });
+            music.play().then(() => {
+              playIcon.style.display = "none";
+              pauseIcon.style.display = "block";
+            });
           } else {
             music.pause();
-            console.log("Music paused at:", music.currentTime);
             playIcon.style.display = "block";
             pauseIcon.style.display = "none";
           }
@@ -559,7 +564,6 @@
         let hideVolumeTimeout = null;
         volumeSlider.addEventListener("input", (e) => {
           music.volume = e.target.value;
-          console.log("Volume set to:", music.volume);
           clearTimeout(hideVolumeTimeout);
           volumeControl.classList.add("visible");
         });
@@ -571,21 +575,11 @@
           );
         });
 
+        // Ẩn thanh volume khi không dùng
         volumeControl.addEventListener("mouseenter", () =>
           clearTimeout(hideVolumeTimeout),
         );
         volumeControl.addEventListener("mouseleave", () => {
-          hideVolumeTimeout = setTimeout(
-            () => volumeControl.classList.remove("visible"),
-            2000,
-          );
-        });
-
-        volumeSlider.addEventListener("touchstart", (e) => {
-          e.stopPropagation();
-          clearTimeout(hideVolumeTimeout);
-        });
-        volumeSlider.addEventListener("touchend", () => {
           hideVolumeTimeout = setTimeout(
             () => volumeControl.classList.remove("visible"),
             2000,
@@ -598,19 +592,11 @@
             !musicBtn.contains(e.target)
           ) {
             volumeControl.classList.remove("visible");
-            clearTimeout(hideVolumeTimeout);
           }
         });
-
-        music.addEventListener("loadeddata", () =>
-          console.log("Audio data loaded"),
-        );
-        music.addEventListener("error", (e) =>
-          console.error("Audio error:", e.message),
-        );
-        music.addEventListener("play", () => console.log("Music play event"));
-        music.addEventListener("pause", () => console.log("Music pause event"));
       }
+
+      setupMusicControls();
 
       setupMusicControls();
     </script>

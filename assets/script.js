@@ -342,10 +342,10 @@ let STAR_COUNT = 0,
 const RingText = [...appData.messages];
 
 let cameraAnimationStart = null;
-const CAMERA_ANIMATION_DURATION = 2.5;
+const CAMERA_ANIMATION_DURATION = 5.0;
 let CAMERA_START_POSITION = {
   x: 0,
-  y: 90,
+  y: 150,
   z: 30,
 };
 const CAMERA_END_POSITION = {
@@ -574,7 +574,7 @@ function createHeartExplosion(event) {
 
     const phi = Math.random() * Math.PI * 2;
     const theta = Math.acos(Math.random() * 2 - 1);
-    const speed = Math.random() * 15 + 10;
+    const speed = Math.random() * 4 + 2;
 
     const velocity = new THREE.Vector3();
     velocity.setFromSphericalCoords(1, phi, theta);
@@ -590,7 +590,7 @@ function createHeartExplosion(event) {
 
   explosionGroup.add(points);
   explosionGroup.userData.velocities = velocities;
-  explosionGroup.userData.life = 1.0;
+  explosionGroup.userData.life = 2.5;
 
   scene.add(explosionGroup);
   explosionEffects.push(explosionGroup);
@@ -1478,7 +1478,36 @@ let initialColorApplied = false;
 function mainAnimationLoop() {
   requestAnimationFrame(mainAnimationLoop);
   let t = clock.getDelta();
+
   const e = clock.getElapsedTime();
+  // --- LOGIC HẠT TỰ THU LẠI ---
+  if (e < GATHER_DURATION) {
+    // Tính toán tiến độ: 0 (bắt đầu) -> 1 (hoàn thành)
+    // Dùng hàm pow để tạo hiệu ứng "Ease Out" (nhanh lúc đầu, chậm lúc cuối)
+    const progress = Math.min(e / GATHER_DURATION, 1);
+    const inverseProgress = 1 - Math.pow(progress, 0.5); // Điều chỉnh số 0.5 để đổi độ mượt
+
+    const currentSpread = inverseProgress * GATHER_SPREAD;
+
+    function updateGatheringPosition(geometry) {
+      if (!geometry || !geometry.userData.targetPositions) return;
+
+      const positions = geometry.attributes.position.array;
+      const targets = geometry.userData.targetPositions;
+      const dirs = geometry.userData.randomDirs;
+
+      for (let i = 0; i < positions.length; i++) {
+        positions[i] = targets[i] + dirs[i] * currentSpread;
+      }
+      geometry.attributes.position.needsUpdate = true;
+    }
+
+    // Cập nhật cho các layer
+    if (staticHeart) updateGatheringPosition(staticHeart.geometry);
+    if (staticTopHeart) updateGatheringPosition(staticTopHeart.geometry);
+    if (staticBottomHeart) updateGatheringPosition(staticBottomHeart.geometry);
+  }
+  // --- KẾT THÚC LOGIC ---
   if (t > 0.1) {
     t = 0.1;
   }
@@ -1814,7 +1843,7 @@ function mainAnimationLoop() {
       const velocities = group.userData.velocities;
 
       // Hằng số điều chỉnh lực hút, bạn có thể thay đổi
-      const attractionStrength = 0.04;
+      const attractionStrength = 0.015;
 
       for (let j = 0; j < velocities.length; j++) {
         const idx = j * 3;
@@ -1843,8 +1872,8 @@ function mainAnimationLoop() {
       points.geometry.attributes.position.needsUpdate = true;
 
       // Làm mờ dần khi sắp kết thúc
-      if (group.userData.life < 1.0) {
-        points.material.opacity = group.userData.life / 1.0;
+      if (group.userData.life < 1.5) {
+        points.material.opacity = group.userData.life / 1.5;
       }
     }
   }
@@ -2567,6 +2596,43 @@ tailMat.onBeforeCompile = function (t) {
 const shootingStars = new THREE.Points(tailGeo, tailMat);
 (scene.add(shootingStars), (shootingStars.userData.fadeStage = STAGE.SHOOT));
 let nextShootTime = 0;
+
+// --- BẮT ĐẦU: CODE XỬ LÝ HIỆU ỨNG TỰ THU LẠI ---
+const GATHER_DURATION = 7.0; // Thời gian hạt bay tụ lại (giây)
+const GATHER_SPREAD = 150.0; // Độ vỡ vụn (càng to hạt bay càng xa)
+
+// Hàm gắn dữ liệu vị trí gốc và hướng bay cho từng geometry
+function setupGathering(geometry) {
+  if (!geometry) return;
+  const positions = geometry.attributes.position.array;
+  const count = positions.length / 3;
+
+  // Tạo mảng lưu vị trí đích (vị trí chuẩn của trái tim)
+  const targetPositions = new Float32Array(positions.length);
+  targetPositions.set(positions);
+  geometry.userData.targetPositions = targetPositions;
+
+  // Tạo mảng lưu hướng bay loạn xạ (random directions)
+  const randomDirs = new Float32Array(positions.length);
+  for (let i = 0; i < count; i++) {
+    const i3 = i * 3;
+    // Tạo vector ngẫu nhiên trong không gian cầu
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+
+    randomDirs[i3] = Math.sin(phi) * Math.cos(theta);
+    randomDirs[i3 + 1] = Math.sin(phi) * Math.sin(theta);
+    randomDirs[i3 + 2] = Math.cos(phi);
+  }
+  geometry.userData.randomDirs = randomDirs;
+}
+
+// Gọi hàm setup cho các phần tĩnh của trái tim
+// (Lưu ý: Không áp dụng cho bottomHeart vì nó có hiệu ứng đung đưa riêng)
+if (staticGeo) setupGathering(staticGeo);
+if (staticTopHeart) setupGathering(staticTopHeart.geometry);
+if (staticBottomHeart) setupGathering(staticBottomHeart.geometry);
+// --- KẾT THÚC: CODE XỬ LÝ HIỆU ỨNG TỰ THU LẠI ---
 
 function triggerSceneActivation(t) {
   heartbeatEnabled ||
