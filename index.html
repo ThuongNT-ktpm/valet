@@ -412,9 +412,122 @@
       width: 100%;
       height: 100%;
       background: radial-gradient(circle, #200020 0%, #000000 100%);
-    "
-  >
-    <h1 id="romantic-title">Cậu SE Trẻ</h1>
+    "></body>
+  <style>
+  /* 1. Cấu hình nền và màn hình chờ */
+  #start-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    /* Gradient tối huyền bí, tập trung ánh sáng ở giữa */
+    background: radial-gradient(circle at center, #2a0a18 0%, #000000 80%);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    transition: opacity 1.5s ease-out, visibility 1.5s;
+    overflow: hidden;
+  }
+
+  /* Class để ẩn màn hình khi bấm nút (JS sẽ thêm class này) */
+  #start-overlay.fade-out {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none; /* Tránh bấm nhầm khi đang mờ dần */
+  }
+
+  /* 2. Trái tim trung tâm */
+  #start-heart {
+    font-size: 100px; /* To hơn */
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.3s ease;
+    /* Hiệu ứng bóng đổ phát sáng nhiều lớp (Neon Glow) */
+    filter: drop-shadow(0 0 10px rgba(255, 20, 147, 0.8)) 
+            drop-shadow(0 0 30px rgba(255, 20, 147, 0.6))
+            drop-shadow(0 0 60px rgba(255, 20, 147, 0.4));
+    
+    /* Animation nhịp tim chân thực */
+    animation: realisticBeat 1.2s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
+  }
+
+  #start-heart:hover {
+    transform: scale(1.1); /* Phóng to nhẹ khi di chuột vào */
+    filter: drop-shadow(0 0 15px rgba(255, 105, 180, 1)) 
+            drop-shadow(0 0 45px rgba(255, 105, 180, 0.8));
+  }
+
+  #start-heart:active {
+    transform: scale(0.95); /* Nhấn xuống tạo cảm giác bấm */
+  }
+
+  /* 3. Dòng chữ hướng dẫn */
+  .instruction-text {
+    color: #fff;
+    font-family: 'Dancing Script', cursive; /* Font chữ viết tay lãng mạn */
+    font-size: 28px;
+    margin-top: 30px;
+    opacity: 0.9;
+    letter-spacing: 2px;
+    text-shadow: 0 0 10px rgba(255, 192, 203, 0.5);
+    animation: floatText 3s ease-in-out infinite;
+  }
+
+  .sub-text {
+    font-family: 'Quicksand', sans-serif;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 5px;
+    letter-spacing: 1px;
+  }
+
+  /* 4. Các Animation (Keyframes) */
+  
+  /* Nhịp tim đập: Thụp-thình (nhanh-chậm) */
+  @keyframes realisticBeat {
+    0% { transform: scale(1); }
+    14% { transform: scale(1.3); }
+    28% { transform: scale(1); }
+    42% { transform: scale(1.3); }
+    70% { transform: scale(1); }
+  }
+
+  /* Chữ bay nhẹ nhàng */
+  @keyframes floatText {
+    0%, 100% { transform: translateY(0); opacity: 0.9; }
+    50% { transform: translateY(-5px); opacity: 1; text-shadow: 0 0 20px rgba(255, 192, 203, 0.8); }
+  }
+
+  /* Hiệu ứng hạt bụi nền (Trang trí thêm) */
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+    background: white;
+    opacity: 0.3;
+    animation: floatParticle 10s infinite linear;
+  }
+  @keyframes floatParticle {
+    from { transform: translateY(0) rotate(0deg); opacity: 0; }
+    50% { opacity: 0.5; }
+    to { transform: translateY(-100vh) rotate(360deg); opacity: 0; }
+  }
+</style>
+
+<div id="start-overlay">
+  <div class="particle" style="left: 10%; width: 4px; height: 4px; animation-duration: 6s; animation-delay: 0s;"></div>
+  <div class="particle" style="left: 30%; width: 2px; height: 2px; animation-duration: 9s; animation-delay: 2s;"></div>
+  <div class="particle" style="left: 70%; width: 5px; height: 5px; animation-duration: 7s; animation-delay: 1s;"></div>
+  <div class="particle" style="left: 90%; width: 3px; height: 3px; animation-duration: 8s; animation-delay: 3s;"></div>
+
+  <div id="start-heart">❤️</div>
+
+  <p class="instruction-text">Chạm nhẹ vào trái tim</p>
+  <p class="sub-text">By Tiến Thương</p>
+</div>
+    <h1 id="romantic-title">Valentine</h1>
     <button
       id="toggle-fullscreen"
       class="text-white btn-fullscreen-toggle"
@@ -452,8 +565,8 @@
         template: "birthday-v2",
         data: {
           title: "kakkaa",
-          messages: ["Valentine vui vẻ", "Anh yêu Em", "Câu SE FA"],
-          images: ["img/1.png", "img/2.webp"],
+          messages: ["Valentine một mình 😌", "Lại 1 năm FA nữa rồi", "Câu SE Trẻ"],
+          images: ["img/1.jpg", "img/2.jpg"],
           heartColor: "#ff1493",
         },
       };
@@ -527,111 +640,97 @@
         fullscreenManager.init();
       });
       function setupMusicControls() {
-        const music = document.getElementById("backgroundMusic");
-        const musicBtn = document.getElementById("musicBtn");
-        const playIcon = document.getElementById("playIcon");
-        const pauseIcon = document.getElementById("pauseIcon");
-        const volumeSlider = document.getElementById("volumeSlider");
-        const volumeControl = document.getElementById("volumeControl");
+    const music = document.getElementById("backgroundMusic");
+    const musicBtn = document.getElementById("musicBtn");
+    const playIcon = document.getElementById("playIcon");
+    const pauseIcon = document.getElementById("pauseIcon");
+    const volumeSlider = document.getElementById("volumeSlider");
+    const volumeControl = document.getElementById("volumeControl");
 
-        if (!music || !musicBtn || !volumeSlider || !volumeControl) {
-          console.error("Music or control elements not found");
-          return;
-        }
+    if (!music || !musicBtn || !volumeSlider || !volumeControl) {
+        console.error("Music or control elements not found");
+        return;
+    }
 
-        music.volume = volumeSlider.value;
+    music.volume = volumeSlider.value;
 
-        // Hàm thử phát nhạc
-        const attemptPlay = () => {
-          music
-            .play()
-            .then(() => {
-              console.log("Music started playing");
-              playIcon.style.display = "none";
-              pauseIcon.style.display = "block";
-              // Nếu phát thành công thì gỡ bỏ sự kiện lắng nghe click để đỡ tốn tài nguyên
-              document.removeEventListener("click", attemptPlay);
-              document.removeEventListener("touchstart", attemptPlay);
-            })
-            .catch((error) => {
-              console.log("Autoplay prevented. Waiting for interaction.");
-            });
-        };
+    // --- ĐÃ XÓA ĐOẠN attemptPlay() ĐỂ KHÔNG TỰ PHÁT NHẠC ---
 
-        // 1. Thử phát ngay lập tức khi tải trang
-        attemptPlay();
-
-        // 2. Nếu thất bại (do trình duyệt chặn), lắng nghe cú click/chạm đầu tiên để phát
-        document.addEventListener("click", attemptPlay);
-        document.addEventListener("touchstart", attemptPlay);
-
-        // --- Logic nút bấm và volume (giữ nguyên) ---
-        function toggleMusic() {
-          if (music.paused) {
+    // Logic nút bấm Bật/Tắt nhạc (Góc màn hình)
+    function toggleMusic() {
+        if (music.paused) {
             music.play().then(() => {
-              playIcon.style.display = "none";
-              pauseIcon.style.display = "block";
+                playIcon.style.display = "none";
+                pauseIcon.style.display = "block";
             });
-          } else {
+        } else {
             music.pause();
             playIcon.style.display = "block";
             pauseIcon.style.display = "none";
-          }
         }
+    }
 
-        musicBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          toggleMusic();
-          if (!volumeControl.classList.contains("visible")) {
+    // Cập nhật icon khi nhạc chạy (do nút trái tim kích hoạt)
+    music.addEventListener('play', () => {
+        playIcon.style.display = "none";
+        pauseIcon.style.display = "block";
+    });
+
+    music.addEventListener('pause', () => {
+        playIcon.style.display = "block";
+        pauseIcon.style.display = "none";
+    });
+
+    musicBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleMusic();
+        // ... (Giữ nguyên logic hiển thị volume) ...
+        if (!volumeControl.classList.contains("visible")) {
             volumeControl.classList.add("visible");
             clearTimeout(hideVolumeTimeout);
             hideVolumeTimeout = setTimeout(
-              () => volumeControl.classList.remove("visible"),
-              2000,
+                () => volumeControl.classList.remove("visible"),
+                2000,
             );
-          } else {
+        } else {
             volumeControl.classList.remove("visible");
-          }
-        });
+        }
+    });
 
-        let hideVolumeTimeout = null;
-        volumeSlider.addEventListener("input", (e) => {
-          music.volume = e.target.value;
-          clearTimeout(hideVolumeTimeout);
-          volumeControl.classList.add("visible");
-        });
+    // ... (Giữ nguyên phần còn lại của hàm setupMusicControls) ...
+    let hideVolumeTimeout = null;
+    volumeSlider.addEventListener("input", (e) => {
+        music.volume = e.target.value;
+        clearTimeout(hideVolumeTimeout);
+        volumeControl.classList.add("visible");
+    });
 
-        volumeSlider.addEventListener("change", () => {
-          hideVolumeTimeout = setTimeout(
+    volumeSlider.addEventListener("change", () => {
+        hideVolumeTimeout = setTimeout(
             () => volumeControl.classList.remove("visible"),
             2000,
-          );
-        });
-
-        // Ẩn thanh volume khi không dùng
-        volumeControl.addEventListener("mouseenter", () =>
-          clearTimeout(hideVolumeTimeout),
         );
-        volumeControl.addEventListener("mouseleave", () => {
-          hideVolumeTimeout = setTimeout(
+    });
+
+    volumeControl.addEventListener("mouseenter", () =>
+        clearTimeout(hideVolumeTimeout),
+    );
+    volumeControl.addEventListener("mouseleave", () => {
+        hideVolumeTimeout = setTimeout(
             () => volumeControl.classList.remove("visible"),
             2000,
-          );
-        });
+        );
+    });
 
-        document.addEventListener("click", (e) => {
-          if (
+    document.addEventListener("click", (e) => {
+        if (
             !volumeControl.contains(e.target) &&
             !musicBtn.contains(e.target)
-          ) {
+        ) {
             volumeControl.classList.remove("visible");
-          }
-        });
-      }
-
-      setupMusicControls();
-
-      setupMusicControls();
+        }
+    });
+}
     </script>
   </body>
 </html>

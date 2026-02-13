@@ -1473,41 +1473,77 @@ for (let t = 0; t < streamCount; t++) initializeStreamParticleState(t, 0);
 ((streamGeo.attributes.position.needsUpdate = !0),
   (streamGeo.attributes.alpha.needsUpdate = !0));
 const clock = new THREE.Clock();
+
+// --- THÊM ĐOẠN NÀY ---
+let isGameStarted = false;
+let gameStartTime = 0;
+const GATHER_DURATION = 7.5; // Thời gian hạt bay về (giây)
+const GATHER_SPREAD = 1500.0; // Độ rộng vỡ vụn ban đầu
+// ---------------------
 let initialColorApplied = false;
 
 function mainAnimationLoop() {
   requestAnimationFrame(mainAnimationLoop);
+
+  // 1. Lấy thời gian chuẩn
   let t = clock.getDelta();
-
+  if (t > 0.1) t = 0.1;
   const e = clock.getElapsedTime();
+
+  // --- [MỚI] CẤU HÌNH GOM HẠT ---
+  const GATHER_DURATION = 12; // Mất 3.5 giây để gom lại
+  const GATHER_SPREAD = 3000.0; // Độ vỡ vụn (2000 là bay rất xa)
+
+  // Setup dữ liệu gom hạt (chạy 1 lần đầu tiên)
+  if (staticHeart && !staticHeart.geometry.userData.targetPositions)
+    setupGathering(staticHeart.geometry);
+  if (staticTopHeart && !staticTopHeart.geometry.userData.targetPositions)
+    setupGathering(staticTopHeart.geometry);
+  if (staticBottomHeart && !staticBottomHeart.geometry.userData.targetPositions)
+    setupGathering(staticBottomHeart.geometry);
+
+  // LOGIC ẨN/HIỆN ĐỂ KHÔNG BỊ "CỤC TRẮNG"
+  // Trong 2.5 giây đầu: Ẩn hết Stream, Ribbon, Plane
+  if (e < 2.5) {
+    if (streamHeart) streamHeart.visible = false;
+    if (ribbon) ribbon.visible = false;
+    if (planeLayer) planeLayer.visible = false;
+  } else {
+    // Sau đó hiện lại từ từ
+    if (streamHeart) streamHeart.visible = true;
+    if (ribbon) ribbon.visible = true;
+    if (planeLayer) planeLayer.visible = true;
+  }
+
+  // LOGIC DI CHUYỂN HẠT (VỠ -> TỤ LẠI)
   if (e < GATHER_DURATION) {
-    const progress = Math.min(e / GATHER_DURATION, 1);
-    const inverseProgress = 1 - Math.pow(progress, 0.5); // Điều chỉnh số 0.5 để đổi độ mượt
+    const progress = e / GATHER_DURATION;
+    // Công thức easing: Ban đầu nhanh, về sau chậm dần
+    const ease = 1 - Math.pow(1 - progress, 3);
+    const currentSpread = (1 - ease) * GATHER_SPREAD;
 
-    const currentSpread = inverseProgress * GATHER_SPREAD;
+    const updateMesh = (mesh) => {
+      if (!mesh || !mesh.geometry.userData.targetPositions) return;
+      const pos = mesh.geometry.attributes.position.array;
+      const target = mesh.geometry.userData.targetPositions;
+      const dir = mesh.geometry.userData.randomDirs;
 
-    function updateGatheringPosition(geometry) {
-      if (!geometry || !geometry.userData.targetPositions) return;
-
-      const positions = geometry.attributes.position.array;
-      const targets = geometry.userData.targetPositions;
-      const dirs = geometry.userData.randomDirs;
-
-      for (let i = 0; i < positions.length; i++) {
-        positions[i] = targets[i] + dirs[i] * currentSpread;
+      for (let i = 0; i < pos.length; i++) {
+        // Vị trí = Đích + (Hướng * Độ lệch)
+        pos[i] = target[i] + dir[i] * currentSpread;
       }
-      geometry.attributes.position.needsUpdate = true;
-    }
+      mesh.geometry.attributes.position.needsUpdate = true;
+    };
 
-    // Cập nhật cho các layer
-    if (staticHeart) updateGatheringPosition(staticHeart.geometry);
-    if (staticTopHeart) updateGatheringPosition(staticTopHeart.geometry);
-    if (staticBottomHeart) updateGatheringPosition(staticBottomHeart.geometry);
+    updateMesh(staticHeart);
+    updateMesh(staticTopHeart);
+    // updateMesh(staticBottomHeart); // Bottom heart để riêng vì nó còn logic rung
   }
-  // --- KẾT THÚC LOGIC ---
-  if (t > 0.1) {
-    t = 0.1;
-  }
+  // ----------------------------------
+
+  // --- [TỪ ĐÂY LÀ CODE CŨ CỦA BẠN - GIỮ NGUYÊN] ---
+
+  // 1. Plane Logic
   for (let e = 0; e < PLANE_COUNT; e++) {
     const a = 3 * e;
     let o = planePositions[a],
@@ -1546,22 +1582,30 @@ function mainAnimationLoop() {
         (a.rotation.y = a.userData.phase));
     });
   }
+
+  // 2. Camera Update
   camera.updateMatrixWorld();
   const a = camera.matrixWorldInverse;
   cosmicDust.rotation.y += 0.00015;
-  if (streamHeartStarted) {
+
+  // 3. Stream Heart
+  if (!streamHeartStarted) streamHeartStarted = true;
+  if (streamHeartStarted && streamHeart.visible) {
+    // Chỉ chạy khi đã hiện
     (streamHeart.matrixWorld, new THREE.Vector3(), new THREE.Vector3());
-    const t = 1e3 * e;
-    (controlImageSpawningLogic(t),
+    const tMs = 1e3 * e;
+    (controlImageSpawningLogic(tMs),
       handleQueuedImageSpawns(),
-      animateFloatingImageSprites(t),
-      t - lastStatusLogTime > 3e3 &&
-        (printImageSystemReport(), (lastStatusLogTime = t)));
+      animateFloatingImageSprites(tMs),
+      tMs - lastStatusLogTime > 3e3 &&
+        (printImageSystemReport(), (lastStatusLogTime = tMs)));
+
     for (let t = 0; t < streamCount; t++) {
       const a = 3 * t,
         o = startTimes[t],
         s = e - (o + (t % 5) * 1.6),
         r = targetIdxArr[t];
+
       if (streamState[t] === STATE_ON_DISK) {
         const o = spiralPhase[t] + BASE_OMEGA * (e - startTimes[t]);
         ((streamPositions[a] = Math.cos(o) * curRadiusArr[t]),
@@ -1744,6 +1788,8 @@ function mainAnimationLoop() {
   }
   ((streamGeo.attributes.position.needsUpdate = !0),
     (streamGeo.attributes.alpha.needsUpdate = !0));
+
+  // 4. Vortex Logic
   for (let t = 0; t < vortexCount; t++) {
     const a = 3 * t,
       o = (1 * Math.PI) / 10,
@@ -1759,19 +1805,53 @@ function mainAnimationLoop() {
       (vortexPositions[a + 2] = Math.sin(l) * m));
   }
   vortexGeo.attributes.position.needsUpdate = !0;
+
+  // 5. Bottom Heart Logic (Đã sửa để tương thích với GOM HẠT)
   const o = bottomGeo.attributes.position.array;
   for (let t = 0; t < bottomCount; t++) {
     if (e < bottomDelayArr[t]) continue;
+
+    // Logic cũ của bạn
     const s = bottomPhaseArr[t],
       r = bottomRadiusArr[t],
       i = Math.cos(s) * r;
+
+    let targetX, targetY, targetZ; // Tính vị trí chuẩn trước
+
     if (Math.abs(s) < 0.25 * Math.PI) {
       const e = Math.min(1, Math.abs(i) / (0.25 * heartWidth)),
         a = 1.5 * Math.pow(1 - e, 3) + 1,
         s = i >= 0 ? 1 : -1;
-      o[3 * t] = i + s * (Math.abs(i) * (a - 1));
-    } else o[3 * t] = i;
-    o[3 * t + 2] = Math.sin(s) * r;
+      targetX = i + s * (Math.abs(i) * (a - 1));
+    } else targetX = i;
+    targetZ = Math.sin(s) * r;
+    targetY = 0; // Tương đối so với tâm
+
+    // Nếu đang trong giai đoạn GOM HẠT
+    if (e < GATHER_DURATION && bottomHeart.geometry.userData.targetPositions) {
+      // Áp dụng offset vỡ vụn cho Bottom Heart
+      const targets = bottomHeart.geometry.userData.targetPositions;
+      const dirs = bottomHeart.geometry.userData.randomDirs;
+
+      // Cần lấy vị trí tĩnh ban đầu từ userData thay vì tính lại từ phase để gom chuẩn
+      // Tuy nhiên bottom heart là động, nên ta áp dụng spread lên kết quả tính toán động
+      const progress = e / GATHER_DURATION;
+      const ease = 1 - Math.pow(1 - progress, 3);
+      const currentSpread = (1 - ease) * GATHER_SPREAD;
+
+      // Vì BottomHeart dùng tọa độ cục bộ xoay theo mesh, ta cộng thêm độ nhiễu
+      // Lấy vector nhiễu đã lưu (chỉ cần lấy x,z tương đối)
+      const dx = dirs[3 * t] * currentSpread;
+      const dz = dirs[3 * t + 2] * currentSpread;
+
+      o[3 * t] = targetX + dx;
+      o[3 * t + 2] = targetZ + dz;
+    } else {
+      // Hết giai đoạn gom, chạy bình thường
+      o[3 * t] = targetX;
+      o[3 * t + 2] = targetZ;
+    }
+
     const n = o[3 * t],
       l = o[3 * t + 1],
       m = o[3 * t + 2],
@@ -1781,6 +1861,8 @@ function mainAnimationLoop() {
   }
   ((bottomGeo.attributes.position.needsUpdate = !0),
     (bottomGeo.attributes.alpha.needsUpdate = !0));
+
+  // 6. Xoay & Nhịp đập
   const s = controls.getAzimuthalAngle();
   if (
     (staticHeart && (staticHeart.rotation.y = s),
@@ -1795,6 +1877,8 @@ function mainAnimationLoop() {
       staticBottomHeart && staticBottomHeart.scale.set(t, t, t),
       staticTopHeart && staticTopHeart.scale.set(t, t, t));
   }
+
+  // 7. Render & Hide/Show Logic
   if (
     (controls.update(),
     renderer.clear(),
@@ -1817,69 +1901,49 @@ function mainAnimationLoop() {
     ((staticGeo.attributes.position.needsUpdate = !0),
       (staticGeo.attributes.alpha.needsUpdate = !0));
   }
-  // -- BẮT ĐẦU: CẬP NHẬT HIỆU ỨNG BÙNG NỔ (CÓ LỰC HÚT) --
+
+  // 8. Explosion
   for (let i = explosionEffects.length - 1; i >= 0; i--) {
     const group = explosionEffects[i];
     group.userData.life -= t;
 
     if (group.userData.life <= 0) {
-      // --- KÍCH HOẠT NHỊP ĐẬP TẠI ĐÂY ---
-      // Chỉ bắt đầu một nhịp đập mới nếu không có nhịp đập nào đang diễn ra
       if (!isPulsing) {
         isPulsing = true;
-        pulseStartTime = e; // 'e' là thời gian hiện tại của clock
-        triggerCosmicRipple(); // <<< THÊM DÒNG NÀY ĐỂ TẠO VÒNG HÀO QUANG
+        pulseStartTime = e;
+        triggerCosmicRipple();
       }
-      // --- KẾT THÚC KÍCH HOẠT ---
-
       scene.remove(group);
       explosionEffects.splice(i, 1);
     } else {
       const points = group.children[0];
       const positions = points.geometry.attributes.position.array;
       const velocities = group.userData.velocities;
-
-      // Hằng số điều chỉnh lực hút, bạn có thể thay đổi
       const attractionStrength = 0.015;
 
       for (let j = 0; j < velocities.length; j++) {
         const idx = j * 3;
-
-        // Lấy vị trí và vận tốc hiện tại của hạt
         const currentPosition = new THREE.Vector3(
           positions[idx],
           positions[idx + 1],
           positions[idx + 2],
         );
         const currentVelocity = velocities[j];
-
-        // --- LOGIC HÚT VỀ TRÁI TIM ---
-        // Tính toán vector hướng từ hạt về tâm trái tim
         const toHeartVector = HEART_CENTER_TARGET.clone().sub(currentPosition);
-
-        // Dần dần thay đổi vận tốc của hạt để hướng về phía trái tim
-        // lerp() giúp tạo ra đường bay cong và mượt mà
         currentVelocity.lerp(toHeartVector, attractionStrength);
-
-        // Cập nhật vị trí hạt dựa trên vận tốc đã được điều chỉnh
         positions[idx] += currentVelocity.x * t;
         positions[idx + 1] += currentVelocity.y * t;
         positions[idx + 2] += currentVelocity.z * t;
       }
       points.geometry.attributes.position.needsUpdate = true;
-
-      // Làm mờ dần khi sắp kết thúc
       if (group.userData.life < 1.5) {
         points.material.opacity = group.userData.life / 1.5;
       }
     }
   }
-  // -- KẾT THÚC: CẬP NHẬT HIỆU ỨNG BÙNG NỔ --
 
-  // -- BẮT ĐẦU: CẬP NHẬT HIỆU ỨNG HÀO QUANG (TỐI ƯU) --
-  const RIPPLE_LIFESPAN = 1.8; // Kéo dài thời gian để lan tỏa rộng hơn
-
-  // Cập nhật Sóng Năng Lượng
+  // 9. Wave
+  const RIPPLE_LIFESPAN = 1.8;
   effectPool.waves.forEach((wave) => {
     if (!wave.userData.active) return;
     const progress = (e - wave.userData.creationTime) / RIPPLE_LIFESPAN;
@@ -1887,18 +1951,12 @@ function mainAnimationLoop() {
       wave.userData.active = false;
       wave.visible = false;
     } else {
-      // =============================================================
-      // FIX: Luôn hướng mặt phẳng về phía camera (Billboarding)
       wave.lookAt(camera.position);
-      // =============================================================
-
-      // Lan tỏa rộng hơn, nhạt hơn
       wave.scale.set(1 + progress * 6, 1 + progress * 6, 1);
       wave.material.opacity = 0.6 * (1 - progress);
     }
   });
 
-  // Cập nhật Bụi Sao (Phần này không cần thay đổi)
   effectPool.sparkles.forEach((sparkles) => {
     if (!sparkles.userData.active) return;
     const progress = (e - sparkles.userData.creationTime) / RIPPLE_LIFESPAN;
@@ -1918,16 +1976,12 @@ function mainAnimationLoop() {
     }
   });
 
-  // -- BẮT ĐẦU: LOGIC CHO TỪNG TỪ BAY LÊN (PHIÊN BẢN MỚI) --
+  // 10. Flying Text
   if (streamHeartStarted && allWordsFlat.length > 0 && e > nextWordSpawnTime) {
-    // Lấy từ tiếp theo trong chuỗi
     const wordToSpawn = allWordsFlat[currentWordIndex];
-
-    // Tìm một hạt đang bay lên và chưa gắn gì cả
     let foundParticle = -1;
     for (let i = 0; i < streamCount; i++) {
       const progress = (e - startTimes[i]) / streamRiseDuration[i];
-      // Chỉ chọn hạt vừa mới bắt đầu bay lên (progress < 0.1) để các từ không xuất hiện đột ngột giữa đường
       if (
         streamState[i] === STATE_ASCEND &&
         progress > 0 &&
@@ -1941,7 +1995,6 @@ function mainAnimationLoop() {
     }
 
     if (foundParticle !== -1) {
-      // Tìm một sprite rảnh rỗi trong hồ chứa có nội dung khớp với từ cần hiển thị
       const textSprite = effectPool.texts.find(
         (txt) => !txt.userData.active && txt.userData.text === wordToSpawn,
       );
@@ -1952,23 +2005,19 @@ function mainAnimationLoop() {
         textSprite.visible = true;
         textSprite.material.opacity = 0;
         activeTexts.set(foundParticle, textSprite);
-
-        // Chuyển sang từ tiếp theo và lặp lại nếu hết
         currentWordIndex = (currentWordIndex + 1) % allWordsFlat.length;
         nextWordSpawnTime = e + WORD_SPAWN_INTERVAL;
       }
     }
   }
 
-  // Cập nhật vị trí và độ mờ của các từ đang bay (logic này gần như không đổi)
   activeTexts.forEach((sprite, particleIndex) => {
     const particleX = streamPositions[particleIndex * 3];
     const particleY = streamPositions[particleIndex * 3 + 1];
     const particleZ = streamPositions[particleIndex * 3 + 2];
     sprite.position.set(particleX, particleY + 1.5, particleZ);
-
     const lifeTime = e - sprite.userData.spawnTime;
-    const FADE_DURATION = 0.8;
+    const FADE_DURATION = 1.0;
     const particleProgress =
       (e - startTimes[particleIndex]) / streamRiseDuration[particleIndex];
 
@@ -1987,76 +2036,40 @@ function mainAnimationLoop() {
       releaseTextToPool(particleIndex);
     }
   });
-  // -- KẾT THÚC: LOGIC CHO TỪNG TỪ BAY LÊN --
 
-  // -- BẮT ĐẦU: CẬP NHẬT VỊ TRÍ VÀ OPACITY CỦA CHỮ ĐANG BAY --
-  activeTexts.forEach((sprite, particleIndex) => {
-    const particleX = streamPositions[particleIndex * 3];
-    const particleY = streamPositions[particleIndex * 3 + 1];
-    const particleZ = streamPositions[particleIndex * 3 + 2];
-    sprite.position.set(particleX, particleY + 1.5, particleZ); // Nâng chữ lên một chút
-
-    // Logic fade-in và fade-out
-    const lifeTime = e - sprite.userData.spawnTime;
-    const FADE_DURATION = 1.0;
-    const particleProgress =
-      (e - startTimes[particleIndex]) / streamRiseDuration[particleIndex];
-
-    if (lifeTime < FADE_DURATION) {
-      sprite.material.opacity = lifeTime / FADE_DURATION;
-    } else if (particleProgress > 0.7) {
-      sprite.material.opacity = Math.max(0, 1 - (particleProgress - 0.7) / 0.3);
-    } else {
-      sprite.material.opacity = 1;
-    }
-
-    // Nếu hạt đã kết thúc vòng đời, giải phóng chữ
-    if (streamState[particleIndex] === STATE_ON_DISK) {
-      releaseTextToPool(particleIndex);
-    }
-  });
-  // -- KẾT THÚC: CẬP NHẬT VỊ TRÍ VÀ OPACITY CỦA CHỮ ĐANG BAY --
-
-  // -- BẮT ĐẦU: HIỆU ỨNG TIM ĐẬP & PHẢN ỨNG MÀU SẮC (LOGIC SỬA LỖI) --
-  const heartMeshes = [
+  // 11. Pulse Color
+  const heartMeshesAll = [
     staticHeart,
     bottomHeart,
     staticBottomHeart,
     staticTopHeart,
   ];
   let finalColor = new THREE.Color();
-
   if (useCustomColor) {
     finalColor.copy(heartInitialColor);
   } else {
     finalColor.setHSL((e * 0.05) % 1, 0.8, 0.6);
   }
-
   if (isPulsing) {
     const pulseProgress = Math.min((e - pulseStartTime) / PULSE_DURATION, 1.0);
     const pulseSine = Math.sin(pulseProgress * Math.PI);
     const scale = 1 + PULSE_AMPLITUDE * pulseSine;
-    heartMeshes.forEach((mesh) => {
+    heartMeshesAll.forEach((mesh) => {
       if (mesh) mesh.scale.set(scale, scale, scale);
     });
-
     const flashColor = new THREE.Color(0xffffff);
     finalColor.lerp(flashColor, pulseSine * 0.8);
-
     if (pulseProgress >= 1.0) {
       isPulsing = false;
-      heartMeshes.forEach((mesh) => {
+      heartMeshesAll.forEach((mesh) => {
         if (mesh) mesh.scale.set(1, 1, 1);
       });
     }
   }
-
-  // SỬA LỖI: Chạy cập nhật màu nếu (màu là động) HOẶC (đang pulsing) HOẶC (chưa áp dụng màu ban đầu)
   if (!useCustomColor || isPulsing || !initialColorApplied) {
     const n = finalColor.r,
       l = finalColor.g,
       m = finalColor.b;
-
     function updateParticleColorArray(attributeArray) {
       if (!attributeArray) return;
       for (let i = 0; i < attributeArray.length; i += 3) {
@@ -2065,7 +2078,6 @@ function mainAnimationLoop() {
         attributeArray[i + 2] = m;
       }
     }
-
     updateParticleColorArray(planeGeo.attributes.color.array);
     updateParticleColorArray(staticGeo.attributes.color.array);
     updateParticleColorArray(bottomGeo.attributes.color.array);
@@ -2087,23 +2099,18 @@ function mainAnimationLoop() {
       staticTopHeart.geometry.attributes.color.needsUpdate = true;
     vortexGeo.attributes.color.needsUpdate = true;
     streamGeo.attributes.color.needsUpdate = true;
-
     ribbon.children.forEach((t) => {
       t.material.color.setRGB(n, l, m);
     });
-
-    // Đánh dấu là đã áp dụng màu ban đầu xong, để tối ưu cho các frame sau
     initialColorApplied = true;
   }
-  // -- KẾT THÚC: HIỆU ỨNG TIM ĐẬP & PHẢN ỨNG MÀU SẮC --
 
+  // 12. Shooting Stars
   if (e >= nextShootTime) {
     for (let t = 0; t < SHOOT_MAX; t++)
       if (shootLife[t] <= 0) {
         const a = 3 * t;
-        const SPAWN_RADIUS = 200; // Bán kính của vùng trời nơi sao băng sẽ xuất hiện
-
-        // 1. Tạo vị trí bắt đầu ngẫu nhiên trên một mặt cầu lớn để đảm bảo nó luôn ở phía sau
+        const SPAWN_RADIUS = 200;
         const startPos = new THREE.Vector3(
           (Math.random() - 0.5) * 2,
           (Math.random() - 0.5) * 2,
@@ -2111,12 +2118,9 @@ function mainAnimationLoop() {
         )
           .normalize()
           .multiplyScalar(SPAWN_RADIUS);
-
         shootPositions[a] = startPos.x;
         shootPositions[a + 1] = startPos.y;
         shootPositions[a + 2] = startPos.z;
-
-        // 2. Tạo một vector vận tốc tiếp tuyến với mặt cầu, giúp sao băng bay ngang qua bầu trời một cách tự nhiên
         const randomVec = new THREE.Vector3(
           Math.random() - 0.5,
           Math.random() - 0.5,
@@ -2125,19 +2129,16 @@ function mainAnimationLoop() {
         const tangentVec = new THREE.Vector3()
           .crossVectors(startPos, randomVec)
           .normalize();
-
-        const s = 40 + 30 * Math.random(); // Tăng tốc độ để phù hợp với không gian lớn hơn
+        const s = 40 + 30 * Math.random();
         shootVel[a] = tangentVec.x * s;
         shootVel[a + 1] = tangentVec.y * s;
         shootVel[a + 2] = tangentVec.z * s;
         shootBirth[t] = e;
-
-        // 3. Tính toán thời gian sống của sao băng dựa trên quãng đường nó bay
         shootLife[t] = (SHOOT_OUT_RADIUS - SPAWN_RADIUS) / s;
         shootAlpha[t] = 0.8 + 0.2 * Math.random();
-        break; // Dừng lại sau khi tạo thành công một sao băng
+        break;
       }
-    nextShootTime = e + 0.5 + Math.random(); // Điều chỉnh thời gian xuất hiện sao băng tiếp theo
+    nextShootTime = e + 0.5 + Math.random();
   }
   for (let e = 0; e < SHOOT_MAX; e++)
     if (shootLife[e] > 0) {
@@ -2187,6 +2188,8 @@ function mainAnimationLoop() {
       staticBottomHeart && staticBottomHeart.scale.set(t, t, t),
       staticTopHeart && staticTopHeart.scale.set(t, t, t));
   }
+
+  // 13. Reveal Logic
   if (
     (null !== revealStart &&
       (fadeObjects.forEach((t) => {
@@ -2201,7 +2204,6 @@ function mainAnimationLoop() {
         (t.traverse?.((child) => {
           const material = child.material;
           if (!material) return;
-
           if (
             child.isSprite &&
             child.userData.text &&
@@ -2223,7 +2225,7 @@ function mainAnimationLoop() {
   ) {
     const t = e - cameraAnimationStart,
       a = THREE.MathUtils.clamp(t / CAMERA_ANIMATION_DURATION, 0, 1),
-      o = a * a * (3 - 2 * a); // Đã sửa lỗi nhỏ ở đây từ 'o' thành 'a'
+      o = a * a * (3 - 2 * a);
     ((camera.position.x = THREE.MathUtils.lerp(
       CAMERA_START_POSITION.x,
       CAMERA_END_POSITION.x,
@@ -2595,31 +2597,29 @@ const shootingStars = new THREE.Points(tailGeo, tailMat);
 let nextShootTime = 0;
 
 // --- BẮT ĐẦU: CODE XỬ LÝ HIỆU ỨNG TỰ THU LẠI ---
-const GATHER_DURATION = 7.0; // Thời gian hạt bay tụ lại (giây)
-const GATHER_SPREAD = 150.0; // Độ vỡ vụn (càng to hạt bay càng xa)
 
 // Hàm gắn dữ liệu vị trí gốc và hướng bay cho từng geometry
+// Kiểm tra xem đoạn này trong code của bạn đã giống thế này chưa, nếu chưa thì sửa lại:
 function setupGathering(geometry) {
   if (!geometry) return;
   const positions = geometry.attributes.position.array;
   const count = positions.length / 3;
 
-  // Tạo mảng lưu vị trí đích (vị trí chuẩn của trái tim)
   const targetPositions = new Float32Array(positions.length);
   targetPositions.set(positions);
   geometry.userData.targetPositions = targetPositions;
 
-  // Tạo mảng lưu hướng bay loạn xạ (random directions)
   const randomDirs = new Float32Array(positions.length);
   for (let i = 0; i < count; i++) {
     const i3 = i * 3;
-    // Tạo vector ngẫu nhiên trong không gian cầu
+    // --- BẮT ĐẦU ĐOẠN QUAN TRỌNG: TẠO HƯỚNG CẦU 3D ---
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
 
-    randomDirs[i3] = Math.sin(phi) * Math.cos(theta);
-    randomDirs[i3 + 1] = Math.sin(phi) * Math.sin(theta);
-    randomDirs[i3 + 2] = Math.cos(phi);
+    randomDirs[i3] = Math.sin(phi) * Math.cos(theta); // X
+    randomDirs[i3 + 1] = Math.sin(phi) * Math.sin(theta); // Y
+    randomDirs[i3 + 2] = Math.cos(phi); // Z
+    // --- KẾT THÚC ---
   }
   geometry.userData.randomDirs = randomDirs;
 }
@@ -2682,6 +2682,30 @@ function triggerSceneActivation(t) {
 
 // Tự động kích hoạt hiệu ứng hình ảnh ngay khi tải xong
 triggerSceneActivation();
+// --- THÊM ĐOẠN NÀY VÀO CUỐI FILE (TRƯỚC KHI GỌI mainAnimationLoop) ---
+const startHeartBtn = document.getElementById("start-heart");
+if (startHeartBtn) {
+  startHeartBtn.addEventListener("click", () => {
+    const overlay = document.getElementById("start-overlay");
+    const music = document.getElementById("backgroundMusic");
+
+    // 1. Ẩn màn hình chờ
+    overlay.classList.add("fade-out");
+
+    // 2. Bật nhạc
+    if (music) {
+      music.volume = 0.5; // Đảm bảo âm lượng vừa phải
+      music
+        .play()
+        .catch((e) => console.log("Cần chạm thêm lần nữa để phát nhạc"));
+    }
+
+    // 3. Đánh dấu bắt đầu game và reset thời gian
+    isGameStarted = true;
+    gameStartTime = clock.getElapsedTime();
+  });
+}
+// -------------------------------------------------------------------
 let lastTouchEnd = 0;
 (document.addEventListener(
   "touchend",
