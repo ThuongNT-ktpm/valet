@@ -1491,7 +1491,7 @@ function mainAnimationLoop() {
   const e = clock.getElapsedTime();
 
   // --- [MỚI] CẤU HÌNH GOM HẠT ---
-  const GATHER_DURATION = 12; // Mất 3.5 giây để gom lại
+  const GATHER_DURATION = 10; // Mất 3.5 giây để gom lại
   const GATHER_SPREAD = 3000.0; // Độ vỡ vụn (2000 là bay rất xa)
 
   // Setup dữ liệu gom hạt (chạy 1 lần đầu tiên)
